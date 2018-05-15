@@ -4,7 +4,7 @@ const {
 } = require('perf_hooks');
 
 
-module.exports = exports = class BulkPerfMeasurer {
+module.exports.BulkPerfMeasurer = class BulkPerfMeasurer {
   constructor(numberOfTests, firstTestsSkipped = 0) {
 
     // Init PerformanceObserver to measure duration of a code
@@ -66,7 +66,7 @@ class AverageStat extends Array {
     super(...arr);
   }
 
-  log(round) {
+  print(round) {
     if (this.length == 0) throw new Error('No measurements have yet been performed')
     console.log('\r\nResult of measurements:\r\n=======================\r\n');
     this.forEach((e, index) => {
@@ -80,7 +80,7 @@ class SortedStat extends Array {
     super(...arr);
   }
 
-  log(round) {
+  print(round) {
     if (this.length == 0) throw new Error('No measurements have yet been performed')
     console.log('\r\nSorted result (best performance first):\r\n=======================================\r\n');
     this.forEach((e, index) => {
