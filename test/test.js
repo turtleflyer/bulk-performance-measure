@@ -1,5 +1,5 @@
 const fs = require('fs');
-const {BulkPerfMeasurer} = require('../src/bulk_performance_measure.js');
+const {BulkPerfMeasurer} = require('../src/bulkpm');
 
 // The array of measured codes is storing in the file
 const codebase = require('./codebase');
