@@ -1,5 +1,5 @@
 const fs = require('fs');
-const {BulkPerfMeasurer} = require('../src/bulkpm');
+const {BulkPerfMeasurer, Stat} = require('../src/bulkpm');
 
 // The array of measured codes is storing in the file
 const codebase = require('./codebase');
@@ -7,9 +7,11 @@ console.log(process.cwd());
 
 const data = fs.readFileSync('./test/input.txt');
 
-const measurer = new BulkPerfMeasurer(200, 5);
+const measurer = new BulkPerfMeasurer();
 
-let {average, sorted} = BulkPerfMeasurer.bulkMeasure(codebase, data, measurer);
+let measures = BulkPerfMeasurer.bulkMeasure(codebase, data, measurer, 10);
 
-average.print(3);
-sorted.print(4);
+let stat = new Stat(measures, 0);
+
+console.log(stat.print(3));
+console.log(stat.print(3, true));

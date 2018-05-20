@@ -1,20 +1,26 @@
+'use strict';
+
 const {
   performance,
   PerformanceObserver
 } = require('perf_hooks');
 
+class Measures extends Array {
+  constructor() {
+    super(...arguments);
+  }
+}
 
-module.exports.BulkPerfMeasurer = class BulkPerfMeasurer {
-  constructor(numberOfTests, firstTestsSkipped = 0) {
+class BulkPerfMeasurer {
+  constructor(numberOfTests) {
 
     // Init PerformanceObserver to measure duration of a code
-    this.obs = new PerformanceObserver(function (list, observer) {
-      this.duration = list.getEntriesByType('function')[0].duration;
+    this.obs = new PerformanceObserver((list, observer) => {
+      this._duration = list.getEntriesByType('function')[0].duration;
       observer.disconnect();
     });
 
     this.numberOfTests = numberOfTests; // Number of performing tests
-    this.firstTestsSkipped = firstTestsSkipped; // Number of the first skipped tests to calculate the stat
   }
 
   static measurePerformance(measured, input, measurer) {
@@ -25,66 +31,104 @@ module.exports.BulkPerfMeasurer = class BulkPerfMeasurer {
     });
 
     (performance.timerify(measured.bind(null, input)))();
-    return measurer.obs.duration;
+    return measurer._duration;
   }
 
   // Performing tests
-  static bulkMeasure(codebase, input, measurer) {
+  static bulkMeasure(codebase, input, measurer, numberOfTests) {
 
     // Init an empty array to store measured durations
-    measurer.measuresStat = [...Array(codebase.length)].map(e => []);
+    const measures = new Measures(...[...Array(codebase.length)].map(e => []));
 
-    for (let index = 0; index < codebase.length * measurer.numberOfTests; index++) {
+    for (let index = 0; index < codebase.length * numberOfTests; index++) {
       let current = index % codebase.length;
-      measurer.measuresStat[current].push(BulkPerfMeasurer.measurePerformance(codebase[current], input, measurer));
+      measures[current].push(BulkPerfMeasurer.measurePerformance(codebase[current], input, measurer));
     }
 
-    // Calculating the average duration for each code
-    const average = measurer.measuresStat.map(arr => arr.reduce((sum, dur, index) => sum + (index < measurer.firstTestsSkipped ? 0 : dur), 0) / (measurer.numberOfTests - measurer.firstTestsSkipped));
+    measures.numberOfTests = numberOfTests;
 
-    // Building the resulting chart
-    const sorted = average.map((e, index) => ({
-      codeN: index,
-      duration: e
-    })).sort((a, b) => (a.duration < b.duration ? -1 : 1));
-
-    return {
-      average: new AverageStat(average),
-      sorted: new SortedStat(sorted)
-    };
+    return measures;
   }
 
-};
+}
+
+// firstTestsSkipped - Number of the first skipped tests to calculate the stat
+
+class Stat {
+  constructor(measures, firstTestsSkipped) {
+
+    if (!(measures instanceof Measures)) throw new Error('Wrong measures input');
+
+    // Calculating the average duration for each code
+    if (!firstTestsSkipped) {
+      firstTestsSkipped = 0;
+    }
+
+    this.average = measures.map(
+      arr => arr.reduce(
+        (sum, dur, index) => sum + (index < firstTestsSkipped ? 0 : dur), 0) / (measures.numberOfTests - firstTestsSkipped));
+
+    // Building the resulting chart
+    this.sorted = this.average.map(
+      (e, index) => ({
+        codeN: index,
+        duration: e
+      })).sort(
+      (a, b) => (a.duration < b.duration ? -1 : 1));
+  }
+
+  print(round, sorted) {
+
+    const amount = this.average.length;
+    if (amount == 0) throw new Error('No measurements have been performed');
+    const padIndex = Math.floor((amount - 1) ** 0.1) + 1;
+    const padDuration = Math.floor(Math.floor(this.sorted[amount - 1].duration) ** 0.1) + 1;
+    let toPrint;
+
+    if (sorted) {
+
+      toPrint = '\r\nSorted result (best performance first):\r\n' + ''.padStart(19 + padIndex + padDuration + round, '=') + '\r\n';
+
+      this.sorted.forEach(
+        (e, index) => {
+          toPrint += function (string, index, codeN, duration) {
+            return string[0] + padNumber(index + 1, padIndex, 0) + string[1] + padNumber(codeN, padIndex, 0) + string[2] + formatNumber(duration, padDuration, round) + string[3] + '\r\n';
+          }
+          `Rank${index}. Code #${e.codeN}: ${e.duration}ms`;
+        });
+
+    } else {
+
+      toPrint = '\r\nResult of measurements:\r\n' + ''.padStart(37 + padIndex + padDuration + round, '=') + '\r\n';
+
+      this.average.forEach(
+        (e, index) => {
+          toPrint += function (string, index, duration) {
+            return string[0] + padNumber(index, padIndex, 0) + string[1] + formatNumber(duration, padDuration, round) + string[2] + '\r\n';
+          }
+          `Average performance for Code #${index} is ${e}ms`;
+        });
+
+    }
+
+    return toPrint;
+  }
+}
 
 function precisionRound(number, precision) {
-  var factor = Math.pow(10, precision);
+  var factor = 10 ** precision;
   return Math.round(number * factor) / factor;
 }
 
-class AverageStat extends Array {
-  constructor(arr) {
-    super(...arr);
-  }
-
-  print(round) {
-    if (this.length == 0) throw new Error('No measurements have yet been performed')
-    console.log('\r\nResult of measurements:\r\n=======================\r\n');
-    this.forEach((e, index) => {
-      console.log(`Average performance for code #${index} is ${precisionRound(e, round)}ms`);
-    });
-  }
+function formatNumber(number, padInteger, precision) {
+  const int = Math.floor(number);
+  const frac = Math.round((number - int) * (10 ** precision));
+  return `${padNumber(int, padInteger, ' ')}.${frac.toString().padEnd(precision, 0)}`;
 }
 
-class SortedStat extends Array {
-  constructor(arr) {
-    super(...arr);
-  }
-
-  print(round) {
-    if (this.length == 0) throw new Error('No measurements have yet been performed')
-    console.log('\r\nSorted result (best performance first):\r\n=======================================\r\n');
-    this.forEach((e, index) => {
-      console.log(`Place ${(index + 1)}. Code # ${e.codeN}: ${precisionRound(e.duration, round)}ms`);
-    });
-  }
+function padNumber(number, pad, fill) {
+  return number.toString().padStart(pad, fill);
 }
+
+module.exports.BulkPerfMeasurer = BulkPerfMeasurer;
+module.exports.Stat = Stat;
