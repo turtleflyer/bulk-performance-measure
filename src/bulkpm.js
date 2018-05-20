@@ -23,26 +23,43 @@ class BulkPerfMeasurer {
     this.numberOfTests = numberOfTests; // Number of performing tests
   }
 
-  static measurePerformance(measured, input, measurer) {
+  static measurePerformance(measured, input, obs) {
 
-    // Function wrapping a measured code
-    measurer.obs.observe({
-      entryTypes: ['function']
-    });
+    if (!obs) {
 
-    (performance.timerify(measured.bind(null, input)))();
-    return measurer._duration;
-  }
+      // Init PerformanceObserver to measure duration of a code
+      obs = new PerformanceObserver(
+        function (list, observer) {
+          this.duration = list.getEntriesByType('function')[0].duration;
+          observer.disconnect();
+        });
+      }
 
-  // Performing tests
-  static bulkMeasure(codebase, input, measurer, numberOfTests) {
+      // Function wrapping a measured code
+      obs.observe({
+        entryTypes: ['function']
+      });
+
+      (performance.timerify(measured.bind(null, input)))();
+      return obs.duration;
+    }
+
+    // Performing tests
+    static bulkMeasure(codebase, input, numberOfTests) {
+
+      // Init PerformanceObserver to measure duration of a code
+      const obs = new PerformanceObserver(
+        function (list, observer) {
+          this.duration = list.getEntriesByType('function')[0].duration;
+          observer.disconnect();
+        });
 
     // Init an empty array to store measured durations
     const measures = new Measures(...[...Array(codebase.length)].map(e => []));
 
     for (let index = 0; index < codebase.length * numberOfTests; index++) {
       let current = index % codebase.length;
-      measures[current].push(BulkPerfMeasurer.measurePerformance(codebase[current], input, measurer));
+      measures[current].push(BulkPerfMeasurer.measurePerformance(codebase[current], input, obs));
     }
 
     measures.numberOfTests = numberOfTests;
@@ -77,7 +94,7 @@ class Stat {
       (a, b) => (a.duration < b.duration ? -1 : 1));
   }
 
-  print(round, sorted) {
+  output(round, sorted) {
 
     const amount = this.average.length;
     if (amount == 0) throw new Error('No measurements have been performed');
