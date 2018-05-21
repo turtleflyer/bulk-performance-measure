@@ -33,26 +33,26 @@ class BulkPerfMeasurer {
           this.duration = list.getEntriesByType('function')[0].duration;
           observer.disconnect();
         });
-      }
-
-      // Function wrapping a measured code
-      obs.observe({
-        entryTypes: ['function']
-      });
-
-      (performance.timerify(measured.bind(null, input)))();
-      return obs.duration;
     }
 
-    // Performing tests
-    static bulkMeasure(codebase, input, numberOfTests) {
+    // Function wrapping a measured code
+    obs.observe({
+      entryTypes: ['function']
+    });
 
-      // Init PerformanceObserver to measure duration of a code
-      const obs = new PerformanceObserver(
-        function (list, observer) {
-          this.duration = list.getEntriesByType('function')[0].duration;
-          observer.disconnect();
-        });
+    (performance.timerify(measured.bind(null, input)))();
+    return obs.duration;
+  }
+
+  // Performing tests
+  static bulkMeasure(codebase, input, numberOfTests) {
+
+    // Init PerformanceObserver to measure duration of a code
+    const obs = new PerformanceObserver(
+      function (list, observer) {
+        this.duration = list.getEntriesByType('function')[0].duration;
+        observer.disconnect();
+      });
 
     // Init an empty array to store measured durations
     const measures = new Measures(...[...Array(codebase.length)].map(e => []));
@@ -98,8 +98,8 @@ class Stat {
 
     const amount = this.average.length;
     if (amount == 0) throw new Error('No measurements have been performed');
-    const padIndex = Math.floor((amount - 1) ** 0.1) + 1;
-    const padDuration = Math.floor(Math.floor(this.sorted[amount - 1].duration) ** 0.1) + 1;
+    const padIndex = getIntPartSize(amount - 1) + 1;
+    const padDuration = getIntPartSize(this.sorted[amount - 1].duration) + 1;
     let toPrint;
 
     if (sorted) {
@@ -132,6 +132,11 @@ class Stat {
   }
 }
 
+function getIntPartSize(x) {
+  let l = Math.floor(Math.log(x) / Math.log(10));
+  return l < 0 ? 0 : l;
+}
+
 function precisionRound(number, precision) {
   var factor = 10 ** precision;
   return Math.round(number * factor) / factor;
@@ -140,7 +145,7 @@ function precisionRound(number, precision) {
 function formatNumber(number, padInteger, precision) {
   const int = Math.floor(number);
   const frac = Math.round((number - int) * (10 ** precision));
-  return `${padNumber(int, padInteger, ' ')}.${frac.toString().padEnd(precision, 0)}`;
+  return `${padNumber(int, padInteger, ' ')}.${frac.toString().padStart(precision, 0)}`;
 }
 
 function padNumber(number, pad, fill) {
