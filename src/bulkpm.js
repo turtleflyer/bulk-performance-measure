@@ -104,7 +104,7 @@ class Stat {
 
     if (sorted) {
 
-      toPrint = '\r\nSorted result (best performance first):\r\n' + ''.padStart(19 + padIndex + padDuration + round, '=') + '\r\n';
+      toPrint = '\r\nSorted result (best performance first):\r\n' + ''.padStart(17 + padIndex * 2 + padDuration + round, '=') + '\r\n';
 
       this.sorted.forEach(
         (e, index) => {
