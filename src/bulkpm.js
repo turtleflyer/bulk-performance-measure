@@ -1,5 +1,11 @@
 const { performance, PerformanceObserver } = require('perf_hooks');
 
+class MeasureError extends Error {
+  constructor(message) {
+    super(`MEASUREMENT ERROR: ${message}`);
+  }
+}
+
 function getIntPartSize(x) {
   let l = Math.floor(Math.log(x) / Math.log(10));
   return l < 0 ? 0 : l;
@@ -20,18 +26,15 @@ function padNumber(number, pad, fill) {
 class Measurement extends Array {}
 
 class BulkPerfMeasurer {
-  static measurePerformance(measured, input, passedObserver) {
-    let observer;
-    if (!passedObserver) {
-      // Init PerformanceObserver to measure duration of a code if it has not been passed
-      observer = new PerformanceObserver(function(list, observer) {
-        this.duration = list.getEntriesByType('function')[0].duration;
-        observer.disconnect();
-      });
-    } else {
-      observer = passedObserver;
-    }
-
+  static measurePerformance(
+    measured,
+    input,
+    // Init PerformanceObserver to measure duration of a code if it has not been passed
+    observer = new PerformanceObserver(function(list, obs) {
+      this.duration = list.getEntries()[0].duration;
+      obs.disconnect();
+    }),
+  ) {
     // Init observer
     observer.observe({
       entryTypes: ['function'],
@@ -43,11 +46,22 @@ class BulkPerfMeasurer {
   }
 
   // Performing bulk measures
-  static bulkMeasure(codebase, input, numberOfTests) {
+  static bulkMeasure(codebase, input, numberOfTests = 1) {
+    if (!Array.isArray(codebase)) {
+      throw new MeasureError('Measured code has to be wrapped into array');
+    }
+    if (!Array.isArray(input)) {
+      throw new MeasureError(
+        'Arguments passed to measured code have to be wrapped into array',
+      );
+    }
+    if (typeof numberOfTests !== 'number' || numberOfTests <= 0) {
+      throw new MeasureError('Number of performed tests has to be greater than 0');
+    }
     // Init PerformanceObserver to measure duration of a code
-    const observer = new PerformanceObserver(function(list, observer) {
-      this.duration = list.getEntriesByType('function')[0].duration;
-      observer.disconnect();
+    const observer = new PerformanceObserver(function(list, obs) {
+      this.duration = list.getEntries()[0].duration;
+      obs.disconnect();
     });
 
     // Init an empty array to store measured durations
@@ -74,23 +88,19 @@ class BulkPerfMeasurer {
 // firstTestsSkipped - Number of the first tests to skip when the stat is calculating
 
 class Stat {
-  constructor(measurement, firstTestsSkipped) {
+  constructor(measurement, firstTestsSkipped = 0) {
     if (!(measurement instanceof Measurement)) {
-      throw new Error('Wrong measurement input');
-    }
-
-    let toSkip;
-    if (!firstTestsSkipped) {
-      toSkip = 0;
-    } else {
-      toSkip = firstTestsSkipped;
+      throw new MeasureError('Wrong measurement input');
     }
 
     // Calculating the average duration for each code
     this.average = measurement.map(
       arr =>
-        arr.reduce((sum, dur, index) => sum + (index < toSkip ? 0 : dur), 0) /
-        (measurement.numberOfTests - toSkip),
+        arr.reduce(
+          (sum, dur, index) => sum + (index < firstTestsSkipped ? 0 : dur),
+          0,
+        ) /
+        (measurement.numberOfTests - firstTestsSkipped),
     );
 
     // Creating sorted chart
@@ -104,9 +114,8 @@ class Stat {
 
   // Building a string exposing the result.
   // SortedFlag determines whatever sorted result is to be outputted.
-  output(round, sortedFlag) {
+  output(round = 3, sortedFlag = false) {
     const amount = this.average.length;
-    if (amount === 0) throw new Error('No measurements have been performed');
     const padIndex = getIntPartSize(amount - 1) + 1;
     const padDuration = getIntPartSize(this.sorted[amount - 1].duration) + 1;
     let toPrint;
@@ -118,11 +127,15 @@ class Stat {
       )}\r\n`;
 
       this.sorted.forEach((e, index) => {
-        toPrint += `Rank ${padNumber(index + 1, padIndex, 0)}. Code #${padNumber(
-          e.codeN,
+        toPrint += `Rank ${padNumber(
+          index + 1,
           padIndex,
           0,
-        )}: ${formatNumber(e.duration, padDuration, round)}ms\r\n`;
+        )}. Code #${padNumber(e.codeN, padIndex, 0)}: ${formatNumber(
+          e.duration,
+          padDuration,
+          round,
+        )}ms\r\n`;
       });
     } else {
       toPrint = `\r\nResult of measurements:\r\n${''.padStart(
@@ -140,6 +153,24 @@ class Stat {
     }
 
     return toPrint;
+  }
+
+  static createStat(measurement, firstTestsSkipped = 0) {
+    return new Stat(measurement, firstTestsSkipped);
+  }
+
+  static getRawOutput(stat, round = 3) {
+    if (!(stat instanceof Stat)) {
+      throw new MeasureError('Wrong argument for stat output');
+    }
+    return stat.output(round, false);
+  }
+
+  static getSortedOutput(stat, round = 3) {
+    if (!(stat instanceof Stat)) {
+      throw new MeasureError('Wrong argument for stat output');
+    }
+    return stat.output(round, true);
   }
 }
 
