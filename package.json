@@ -1,7 +1,7 @@
 {
   "name": "bulk-performance-measure",
-  "version": "2.1.0",
-  "main": "src/bulkpm.js",
+  "version": "3.0.0",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -10,5 +10,9 @@
     "url": "https://github.com/turtleflyer/bulk-performance-measure.git"
   },
   "author": "Andrei Kovalev <turtlefly@gmail.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "eslint-config-airbnb-base": "^12.1.0",
+    "eslint-plugin-import": "^2.12.0"
+  }
 }

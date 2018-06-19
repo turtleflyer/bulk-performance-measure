@@ -1,2 +1,6 @@
 test
 node_modules
+src
+.debug
+.eslintrc.json
+package-lock.json
